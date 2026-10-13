@@ -1,5 +1,5 @@
 const {contextBridge,ipcRenderer}=require('electron');
-const channels=new Set(['create','navigate','close','activate','action','viewport','shield','window','downloads','clear-data']);
+const channels=new Set(['create','navigate','close','activate','action','viewport','shield','location','site-exceptions','privacy-stats','relay-start','window','downloads','clear-data']);
 contextBridge.exposeInMainWorld('pynault',{platform:'desktop',request:(name,payload={})=>{
   if(!channels.has(name))return Promise.reject(new Error('Blocked operation'));
   return ipcRenderer.invoke('pynault:'+name,payload);

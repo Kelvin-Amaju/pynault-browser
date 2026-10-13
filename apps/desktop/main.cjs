@@ -4,29 +4,59 @@ const { app, BrowserWindow, WebContentsView, ipcMain, session, dialog, shell } =
 const path = require('node:path');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
+const os = require('node:os');
+const {webContents} = require('electron');
+const DOMAINS=require('../../src/privacy/domains.json');
 
 const DEV = !app.isPackaged;
 const HOME = 'pynault://newtab';
-const TRACKERS = new Set(['google-analytics.com','www.google-analytics.com','doubleclick.net','ad.doubleclick.net','facebook.net','connect.facebook.net','pixel.facebook.com','hotjar.com','static.hotjar.com','bat.bing.com']);
+const AD_HOSTS=new Set(DOMAINS.ads);
+const BLOCK_HOSTS=new Set([...DOMAINS.ads,...DOMAINS.trackers]);
+const blockedBy=host=>[...BLOCK_HOSTS].some(d=>host===d||host.endsWith('.'+d));
 const tabs = new Map();
 let mainWindow, currentId=null, contentVisible=true, viewport={x:240,y:95,width:1000,height:620};
-let shieldEnabled = true;
+let shieldEnabled = true, locationBlocked = true;
+let blockedCount=0;let siteExceptions=[];
 let mountedView = null;
+let relayServer=null;
+async function startLocalRelay(){
+ if(!relayServer){const {createRelayServer}=await import('../../services/link-relay/server.mjs');
+  relayServer=createRelayServer({port:18765,host:'0.0.0.0'});
+  await new Promise((resolve,reject)=>{relayServer.once('listening',resolve);relayServer.once('error',reject)});
+ }
+ const nets=Object.values(os.networkInterfaces()).flat().filter(Boolean);
+ const ip=nets.find(n=>n.family==='IPv4'&&!n.internal)?.address;
+ if(!ip)throw new Error('No LAN IPv4 address found. Connect both devices to Wi-Fi.');
+ return {ok:true,relay:'http://'+ip+':18765'};
+}
 const safeHttp = value => { try { return ['http:', 'https:'].includes(new URL(value).protocol); } catch { return false; } };
 const send = (type,data) => {if(mainWindow && !mainWindow.isDestroyed())mainWindow.webContents.send('pynault:event',{type,...data});};
 function configureSession(partition){
   const s=session.fromPartition(partition);
   if(s.__pynaultReady)return s;
   s.__pynaultReady=true;
+  const allowedOrigins=new Set();
+  s.setPermissionCheckHandler((_wc,permission,origin)=>{
+    if(permission==='geolocation'&&locationBlocked)return false;
+    return typeof origin==='string'&&allowedOrigins.has(origin+'|'+permission);
+  });
   s.setPermissionRequestHandler((wc,permission,callback,details)=>{
     const allowed = ['media','geolocation','notifications','clipboard-read','fullscreen'].includes(permission);
     const url=details.requestingUrl || wc.getURL();
-    if(!allowed || !safeHttp(url)){callback(false);return;}
-    dialog.showMessageBox(mainWindow,{type:'question',buttons:['Block','Allow'],defaultId:0,cancelId:0,title:'Pynault site permission',message:`Allow ${new URL(url).hostname} to use ${permission}?`,detail:'Only approve websites you trust.'}).then(r=>callback(r.response===1)).catch(()=>callback(false));
+    if(!allowed || !safeHttp(url) || (permission==='geolocation'&&locationBlocked)){callback(false);return;}
+    dialog.showMessageBox(mainWindow,{type:'question',buttons:['Block','Allow'],defaultId:0,cancelId:0,title:'Pynault site permission',message:`Allow ${new URL(url).hostname} to use ${permission}?`,detail:'Only approve websites you trust.'}).then(r=>{if(r.response===1)allowedOrigins.add(new URL(url).origin+'|'+permission);callback(r.response===1)}).catch(()=>callback(false));
   });
   s.webRequest.onBeforeRequest((details,callback)=>{
-    if(!shieldEnabled){callback({cancel:false});return;}
-    try{const hostname=new URL(details.url).hostname;callback({cancel:TRACKERS.has(hostname)||[...TRACKERS].some(t=>hostname.endsWith('.'+t))});}catch{callback({cancel:false})}
+    if(!shieldEnabled || details.resourceType==='mainFrame'){callback({cancel:false});return;}
+    try{
+      const hostname=new URL(details.url).hostname.toLowerCase();
+      const page=webContents.fromId(details.webContentsId)?.getURL()||'';
+      let origin='';try{origin=new URL(page).hostname.toLowerCase()}catch{}
+      const isOwn=!!origin && (hostname===origin || origin.endsWith('.'+hostname));
+      const blocked=!isOwn && !siteExceptions.includes(origin) && blockedBy(hostname);
+      if(blocked){blockedCount++;if(blockedCount%5===1)send('privacy-stats',{blockedCount})}
+      callback({cancel:blocked});
+    }catch{callback({cancel:false})}
   });
   s.on('will-download',(event,item)=>{
     const dir=app.getPath('downloads');let fname=path.basename(item.getFilename()).replace(/[<>:"/\\|?*\x00-\x1F]/g,'_')||'download';
@@ -79,7 +109,11 @@ function attachEvents(id,view){
       browserAction({id,action:input.alt?(key==='arrowleft'?'back':'forward'):'reload'});
     }
   });
-  wc.on('page-favicon-updated',(_e,icons)=>update({favicon:icons[0]||''}));
+  wc.on('did-finish-load',()=>{
+    if(!shieldEnabled)return;
+    wc.insertCSS('.adsbygoogle, [data-ad-slot], [data-ad-client], .ad-banner, .advertisement, .advertisement-container {display:none!important}').catch(()=>{});
+  });
+  wc.on('page-favicon-updated' ,(_e,icons)=>update({favicon:icons[0]||''}));
   const navigate=(_e,url)=>{if(safeHttp(url))update({url,canGoBack:wc.navigationHistory.canGoBack(),canGoForward:wc.navigationHistory.canGoForward()})};
   wc.on('did-navigate',navigate);wc.on('did-navigate-in-page',navigate);
   wc.on('did-fail-load',(_e,code,description,url,isMain)=>{if(isMain && code!==-3)update({loading:false,error:`${description} (${code})`,...(safeHttp(url)?{url}:{})})});
@@ -150,6 +184,7 @@ function openDesktop(){
 }
 app.whenReady().then(()=>{configureSession('persist:pynault-browser');configureSession('pynault-private-session');openDesktop();app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)openDesktop()})});
 app.on('window-all-closed',()=>{if(process.platform!=='darwin')app.quit()});
+app.on('before-quit',()=>{if(relayServer)relayServer.close();});
 const handlers={
  'create':(_,{id,url,privateMode})=>createTab({id,url,privateMode}),
  'navigate':(_,{id,url})=>navigate(id,url),
@@ -158,6 +193,10 @@ const handlers={
  'action':(_,payload)=>browserAction(payload),
  'viewport':(_,{rect,visible})=>{if(rect&&['x','y','width','height'].every(k=>Number.isFinite(rect[k])))viewport=rect;contentVisible=!!visible;syncView();return {ok:true}},
  'shield':(_,{enabled})=>{shieldEnabled=!!enabled;return {ok:true}},
+ 'location':(_,{blocked})=>{locationBlocked=!!blocked;return {ok:true}},
+ 'site-exceptions':(_,{hosts=[]})=>{siteExceptions=(Array.isArray(hosts)?hosts:[]).filter(h=>typeof h==='string'&&/^[a-z0-9.-]{1,253}$/.test(h)).slice(0,200);return {ok:true}},
+ 'privacy-stats':()=>({ok:true,blockedCount,locationBlocked,shieldEnabled}),
+ 'relay-start':async()=>startLocalRelay(),
  'window':(_,{action})=>{if(action==='minimize')mainWindow.minimize();if(action==='maximize'){if(mainWindow.isMaximized())mainWindow.unmaximize();else mainWindow.maximize()}if(action==='close')mainWindow.close();return {ok:true}},
  'downloads':async()=>{const error=await shell.openPath(app.getPath('downloads'));if(error)throw new Error(error);return {ok:true}},
  'clear-data':async()=>{

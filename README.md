@@ -1,98 +1,76 @@
-# PYNAULT — Browse Beyond. (v0.2.0 developer source)
+# PYNAULT BROWSER — v0.3.0
 
-Graphite & lime web-browser prototype with first-party plugins. Source package contains a React UI, Electron desktop renderer and native Capacitor Android/iOS WebView adapters. **This is an early development build, not a hardened everyday browser.**
+**Browse Beyond.** Desktop: React/Vite + Electron/Chromium. Mobile: React/Capacitor + Android WebView / iOS WKWebView. Same graphite-and-lime product design, separate native website renderers. This repository is source code, not a compiled Windows installer / APK / IPA.
 
-## Current implementation
-
-- Custom dark UI with expandable sidebar, optional top tabs, new-tab start page, shortcuts, mobile tab grid and bottom actions.
-- Desktop: actual Chromium web pages in isolated `WebContentsView` instances, back/forward/reload, tab switching and opening new windows in new tabs.
-- Desktop: site permission prompt, basic tracker-host blocklist, private tab partition, downloads with status, screenshot, reader mode.
-- Android/iOS: native WebView/WKWebView implementation sources and sync adapter; mobile integration is **unverified**, not a finished APK/IPA. The bundled preview itself opens pages in your current browser.
-- Persistent on-device bookmarks, history, notes, tab URLs, search engine selection and settings; localStorage persistence, *not cloud sync*.
-- Search engines: Google, DuckDuckGo, Brave Search, Bing; recently closed regular tab recovery.
-- Trusted built-in plugin manifests and basic validation; third-party plugin execution is disabled.
-- No third-party extensions, password manager, account sync, automatic updates or security guarantees.
-
-## Install / Desktop (Windows recommended)
-
-Requires Node.js 22+ and npm. Electron downloads Chromium while installing dependencies.
-
-```powershell
+## Run desktop (Node.js 22 or later)
+```sh
 npm install
+npm run verify
 npm run desktop:dev
 ```
-
-For the Windows installer (on a Windows system):
-
-```powershell
+Windows distributable:
+```sh
 npm run desktop:dist
 ```
+Building production installers needs OS-specific build resources and signing. Running `npm install` requires access to npm; it could not be executed in the source-creation environment.
 
-Output under `release/`. If you want to inspect the UI in a normal web browser without Electron, run `npm run dev` and visit http://127.0.0.1:5173; the web preview cannot embed arbitrary sites and opens them externally.
-
-## Android setup
-
-Requires Android Studio, Android SDK and JDK 21 supported by Capacitor 8.
-
-```powershell
+## Run mobile
+```sh
 npm install
-npm run build
-npx cap add android
-node scripts/install-native.mjs
-npx cap sync android
-npx cap open android
+npm run mobile:add:android      # once, if android/ absent
+npm run mobile:android          # sync assets + native plugin + open Android Studio
 ```
+Then build/run from Android Studio, after Gradle sync. Android uses minSdk 26 for the QR scanner. You need the Android SDK. The build includes a native website WebView (`NativePagesPlugin.java`) and the official Capacitor barcode scanner. Android camera, microphone, approximate location and internet permissions are installed by `scripts/install-native.mjs`.
 
-Build/install from Android Studio. The included Android adapter is a source-level prototype and requires device validation. Android private tabs are explicitly disabled until proper cookie/storage isolation is implemented. Download support varies by Android version and permissions.
-
-## iOS setup
-
-Requires a Mac with Xcode.
-
-```bash
+On **macOS with Xcode**:
+```sh
 npm install
-npm run build
-npx cap add ios
-node scripts/install-native.mjs
-npx cap sync ios
-npx cap open ios
+npm run mobile:add:ios          # once, if ios/ absent
+npm run mobile:ios              # sync assets + native code + open Xcode
 ```
+Add `NativePagesPlugin.swift` and `MyViewController.swift` to the App target if they are not auto included. Confirm the storyboard uses `MyViewController`. The installer adds camera/microphone local-network and Files settings to Info.plist. iOS still needs Apple developer signing to install on a real device.
 
-Check both `NativePagesPlugin.swift` and `MyViewController.swift` are in the App target; verify `Main.storyboard` initial bridge view controller uses `MyViewController` (module `App`). WKWebView private tabs use nonpersistent site data. **iOS native integration and downloads have not been verified**.
+## Everyday functionality
+* Desktop: browser tabs, horizontal tabs and collapsible sidebar, direct URL/search, history, downloads, bookmarks, private partition, notes, reader mode, screenshots, focus mode, settings, keyboard shortcuts.
+* Mobile: separate native page-rendering overlays, tab grid, bottom nav, WebView/WKWebView navigation, QR scanning and page handoff, bookmarks, history, bundled privacy tools. iOS private tabs use non-persistent WKWebsiteDataStore. **Android private mode remains disabled**, rather than falsely claiming isolation; normal WebViews share the cookie store.
+* Ad & tracker blocker: bundled domain rules and cosmetic hiding in Electron/Android/iOS; on by default. **This is not equivalent to uBlock Origin**, and first-party/in-stream ads can remain. Some site functions can depend on third-party assets: turn off blocking temporarily if a site breaks.
+* Location Guard: website geolocation is denied by default. Toggle under Settings → Privacy. Turning it off allows per-site permission prompts, subject to OS permissions. No GPS data is sent to Pynault.
+* Built-in plugins: Ad & Tracker Blocker, Location Guard, Share Page QR, Device Link, Reader Mode, Page Notes, Focus Mode, Screenshot (desktop).
 
-## Controls
+## QR codes — send the site you're viewing to a phone
+1. Open a website on Pynault Desktop.
+2. Click the QR icon beside the address bar (or Share in the sidebar).
+3. Scan with **Pynault Mobile → Menu → Share / QR → Scan**, or any QR scanner.
+4. Pynault Mobile opens the scanned HTTP(S) site. The QR code is generated entirely on your device.
 
-- Ctrl/Cmd+L — Focus address bar
-- Ctrl/Cmd+T — New tab
-- Ctrl/Cmd+W — Close current tab
-- Ctrl/Cmd+Shift+T — Reopen last closed regular tab
-- Alt+Left — Go back
-- F5 — Refresh
-- Right sidebar sheet — bookmarks, history, downloads, plugins, notes, settings
+## Pair the desktop and phone to send links both directions
+1. Connect both devices to the **same trusted Wi-Fi** and permit desktop incoming TCP connections on **port 18765** if prompted by your firewall.
+2. Desktop → **Devices** → **Enable nearby sharing & create pairing QR**. The desktop starts a tiny local link relay and shows a QR containing a random room ID and 256-bit encryption key.
+3. Mobile → **Devices** → **Scan desktop pairing code**. Point camera at the desktop QR. The phone saves the encrypted pairing information locally.
+4. Open a website on either device → **Share → Send to paired device**.
+5. On the receiving device, open **Devices → Received links** and tap to open. Incoming links are also polled while the app is open.
 
-## Architecture
+The relay receives AES-GCM encrypted link messages, not the plaintext URLs or the encryption key. Link messages expire after 24 hours. The QR itself is secret; never post pairing QR codes online. The desktop IP may change with your network, in which case generate a fresh pairing code. Mobile and desktop must be running and able to reach each other on local Wi-Fi. If using mobile cellular or different networks, self-host the relay behind HTTPS and enter its URL on the desktop Devices screen before generating the pairing QR.
 
-- `src/App.jsx`, `src/styles.css` — shared UI / per-device responsive layouts
-- `src/navigation.js`, `src/storage.js` — URL normalization and simple local persistence
-- `apps/desktop/main.cjs` — privileged Electron lifecycle; isolated Chromium `WebContentsView` tabs
-- `apps/desktop/preload.cjs` — allowlisted API bridge; remote pages cannot access it
-- `apps/mobile/native/android/` — isolated Android WebViews behind a Capacitor plugin interface
-- `apps/mobile/native/ios/` — WKWebViews behind equivalent plugin
-- `scripts/install-native.mjs` — copies native implementations into generated Capacitor projects
-- `tests/` — source-level URL handling tests
+## Optional cross-network relay (self-hosted, no database)
+```sh
+HOST=127.0.0.1 PORT=8787 npm run relay
+```
+Expose through your own secure **HTTPS** reverse proxy. Set rate limits, TLS and a suitable retention policy before any public deployment. Desktop Devices has an optional custom HTTPS relay input. Do not expose the unauthenticated local Node server directly to the public internet without abuse protection. No account-based cloud sync is supplied.
 
-## Important security limitations
-
-This project is a *prototype*, not a security-audited browser. Electron native views provide separation from React chrome, but browser hardening is much larger: certificate UI, safe-browsing/phishing detection, privacy partitioning, authenticated updates, password security, request blocking updates, OS integration, browser registration, accessibility, crash recovery, per-site permission persistence and resource throttling are future tasks.
-
-Never handle sensitive accounts or passwords in an unreviewed fork. Do not distribute as a privacy-hardened browser. `pynault://newtab` is an application-owned sentinel only; remote schemes besides HTTP(S) are rejected.
-
-## Tests
-
-```bash
+## Source checks
+```sh
 npm run verify
 ```
+This runs pure Node tests (navigation, browser tab state, plugin registry, adblock rules, pair/crypto and relay), plus source invariant checks. Native Swift/Java code needs Xcode/Gradle to compile and run; these cannot be replaced by static checks.
 
-Expected: 34 passing tests. See `docs/WORK-DONE.md` and `docs/PLUGIN-API.md`.
+## Security notes & honest limitations
+- Ad blocking reduces common advertising/tracking hosts but is not exhaustive. The app does not spoof user agents or remove bot challenges from websites.
+- Native website views are separated from the privileged React UI. The desktop is sandboxed; the browser shell communicates through an IPC allowlist. Mobile pages are separate WebViews.
+- Local device pairing is designed for trusted LANs. It encrypts message **contents** but exposes IP/connection metadata on LAN and has not undergone an external security audit. Device keys are stored in local app storage; OS secure storage would be advisable before general public release.
+- No arbitrary external Chrome/Firefox extension support (not technically equivalent). These are vetted bundled first-party plugins.
+- Android WebView private tabs are intentionally disabled until isolated WebView data processes are added. iOS uses a nonpersistent store.
+- The custom iOS downloading, WebKit content filtering, mobile permissions and QR scanner require actual real-device checks before release.
+- This project is **not yet a production-hardened replacement for Chrome, Edge or Firefox**. Real site compatibility, code signing, updates and accessibility/QA require physical environment testing.
 
-Note: native builds and React compiler/Vite production builds require `npm install`. The CI-like source verification is not a substitute for a compiled build. This source package does not include an EXE, APK, or IPA.
+See `docs/WORK-DONE.md`, `docs/AUDIT.md` and `docs/PLUGIN-API.md` for implementation status.

@@ -1,34 +1,11 @@
-# Pynault Browser v0.2.0 — Work completed
+# Pynault — v0.3.0 completed source changes
 
-## Implemented in this source update
-
-- Preserved the user-approved Pynault branding, desktop design and mobile UI.
-- Improved desktop `WebContentsView` mounting to avoid detaching/re-attaching a page on every viewport update.
-- Added Chromium page keyboard handling: Ctrl/Cmd+L, Ctrl/Cmd+T, Ctrl/Cmd+W, Ctrl/Cmd+Shift+T, reload, Alt+Left/Right, including while a remote page has focus.
-- Added private session storage/cache cleanup when the last desktop private tab closes (nonpersistent partition).
-- Improved main-frame navigation failure reporting, source URL validation, and React error-state visibility.
-- Added configurable Google, DuckDuckGo, Brave and Bing search.
-- Added recently-closed tab recovery (regular tabs only) and 40-tab/300-visit limits.
-- Hardened restoration of previously stored tab data and introduced testable tab-state helpers.
-- Added explicit desktop clear site-data action with confirmation; it clears browser cookies and caches (not local Pynault bookmarks or notes).
-- Improved Android download folder opening, cookie download handling and load-error reporting.
-- Improved iOS support for `target=_blank` navigation and subframe browsing; added WKWebView back/forward swipe support and error reporting.
-- Added a validated, capability-described first-party tool registry; third-party plugin execution remains disabled.
-- Expanded Node-based tests from 7 to 34; `npm run verify` passes in this container.
-- Added source verification script and draft plugin API documentation.
-
-## Checks completed
-
-- `npm run verify` — PASSED, 34/34 tests.
-- Electron main/preload source syntax — PASSED.
-- React JSX source parser — PASSED with TypeScript transpilation diagnostics (0 errors). **This is not a Vite production build.**
-- Source ZIP built and checked for expected files.
-
-## Cannot be verified in this environment
-
-- `npm install` timed out against registry access; Electron/Vite dependencies are unavailable here.
-- Full `npm run build`, `npm run desktop:dev`, signed Windows installers, Android Gradle and iOS Xcode builds could not be performed.
-- Native plugin registration and browser engine integrations require Windows/Android/macOS testing.
-- Android private browsing remains disabled; iOS downloads, camera/mic access, native share and full browser security hardening remain outstanding.
-
-**Deployment status:** Developer source release, not a production-safe daily browser or distribution-ready EXE/APK/IPA.
+- Reworked graphite/lime visual treatment of desktop sidebar and header, home search, shortcuts, widget rail and mobile views to be closer to approved PNG designs. Added aurora photographic background `public/aurora-pynault.png`. Existing approved concept boards retained in `design/`.
+- Desktop: expanded ad blocker from 9 hosts to 105 curated ad/tracker domains, third-party request checks, lightweight cosmetic hiding, blocker stats and prompt-denied geolocation by default.
+- Android: same bundled domain block list, cosmetic blocking, native location permission confirmation, website media prompts; registered OS camera/microphone/location permissions. QR scanner integration through the official Capacitor package.
+- iOS: WebKit content rule list for ads/trackers, cosmetic filter, document-start location JavaScript guard, WKWebView native download delegate to Documents/Downloads, media capture prompt and iOS Info.plist additions. Device compiling remains mandatory.
+- QR: first-party PNG QR generation in React (qrcode package), camera scanning via Capacitor scanner, open scanned valid HTTP(S) URLs.
+- Device linking: random pairing QR (32-byte encryption key), WebCrypto AES-GCM link encryption and decryption, background foreground polling, inbox UI, source/device labels and link send action.
+- Relay: optional embedded desktop LAN HTTP relay (opt-in on Devices), optional standalone Node relay for HTTPS reverse proxy; size, TTL, message-count limits and server tests.
+- Existing navigation/session/bookmark/history/plugin behaviors preserved, desktop IPC allowlist extended rather than exposing remote webpages to Node.
+- Source audit tests expanded to 46 with successful results as generated. Node syntax checks and Swift parser checks run; native compile and production Vite bundle require external dependencies and toolchains.

@@ -7,4 +7,4 @@ test('disallows unknown extension permissions',()=>assert.equal(validatePluginMa
 test('disallows unrecognized target platform',()=>assert.equal(validatePluginManifest({...BUNDLED_PLUGINS[0],platforms:['server']}).ok,false));
 test('only supports known browser capabilities',()=>assert.ok(PLUGIN_PERMISSIONS.includes('browser.page.reader')));
 test('Android excludes desktop-only screenshot plugin',()=>assert.ok(!availablePlugins('android').some(x=>x.id==='screenshot')));
-test('iOS excludes basic tracker shield requiring native blocklist',()=>assert.ok(!availablePlugins('ios').some(x=>x.id==='shield')));
+test('iOS includes native content-rule ad blocker',()=>assert.ok(availablePlugins('ios').some(x=>x.id==='shield')));

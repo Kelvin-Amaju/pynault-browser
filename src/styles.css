@@ -8,3 +8,66 @@
 /* Browser preferences and responsive native viewport refinements */
 .search-select{min-width:125px;max-width:160px;border:1px solid #385146;border-radius:8px;background:#192b24;color:#d9fabb;padding:7px 9px;font-size:11px;outline-color:#c9f75d}
 @media(max-width:790px){.search-select{max-width:145px}}
+
+/* PYNAULT v0.3: preserve the approved aurora concept, with soft photographic visuals */
+:root{--lime:#d2ff56;--graphite:#0a1012;--glass:rgba(10,19,19,.74)}
+.app{background:#060b0b}
+.desktop-sidebar{background:linear-gradient(180deg,#0b1011 0%,#090e0f 72%,#0b1713 100%);border-right-color:#26342d}
+.sb-brand{padding-top:12px;padding-bottom:12px}
+.sb-link,.sb-tab{transition:background .2s ease,color .2s ease,transform .2s ease;border-radius:12px}
+.sb-link:hover,.sb-tab:hover{background:rgba(200,255,77,.065);transform:translateX(2px)}
+.sb-link.selected,.sb-tab.selected{background:linear-gradient(90deg,rgba(197,244,80,.19),rgba(197,244,80,.045));box-shadow:inset 3px 0 #cafa53}
+.workspace{background:#050b0c}
+.desktop-header{background:#090e10}
+.url-form{border-radius:15px;background:linear-gradient(110deg,#141f21,#1a2424);border-color:#34463d;box-shadow:0 3px 24px #0004}
+.top-tab.selected{box-shadow:inset 0 2px #c5f451,0 -1px 16px #b1ff2d20}
+.browser-stage.stage-home .wallpaper{position:absolute;inset:0;background:linear-gradient(90deg,rgba(5,10,12,.25),rgba(6,13,16,.26)),url('/aurora-pynault.png') center center/cover no-repeat!important;filter:none!important}
+.browser-stage.stage-home .wallpaper:after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,#0001 12%,#02080766 65%,#03090ae8 100%)}
+.browser-stage.stage-home .planet,.browser-stage.stage-home .mountain{display:none!important}
+.newtab-shell{isolation:isolate}
+.start-brand img{filter:drop-shadow(0 4px 21px #bdfc4880)}
+.start-brand h1{font-size:clamp(34px,3.2vw,61px)!important;letter-spacing:.25em;font-weight:400;text-shadow:0 5px 23px #000b}
+.start-brand span{font-weight:400;letter-spacing:.5em;text-shadow:0 2px 12px #000}
+.search-home{background:linear-gradient(100deg,rgba(13,21,23,.84),rgba(24,36,33,.82));box-shadow:0 12px 36px #0009,0 0 0 1px #baf84153;backdrop-filter:blur(18px);border:1px solid #c5f451!important}
+.shortcut-icon{background:linear-gradient(160deg,rgba(34,43,43,.95),rgba(13,20,20,.92));border:1px solid #82968c3b;box-shadow:0 7px 24px #0008;transition:transform .2s ease,border .2s ease}
+.shortcut:hover .shortcut-icon{transform:translateY(-5px);border-color:#c5f451}
+.right-rail{backdrop-filter:blur(16px)}
+.widget{background:rgba(6,14,15,.78)!important;backdrop-filter:blur(14px);box-shadow:0 12px 28px #0006}
+.time-widget{background:linear-gradient(#050b0b49,#060b0b73),url('/aurora-pynault.png') 48% 76%/cover!important}
+.promo-widget{background:linear-gradient(110deg,#081710e8,#1433208a),url('/aurora-pynault.png') 88% 40%/cover!important}
+.side-panel{background:linear-gradient(135deg,rgba(14,23,24,.985),rgba(8,17,18,.985));border-color:#304036}
+.panel-heading{background:linear-gradient(90deg,#101c19,#0b1314)}
+/* QR and connected device modal */
+.pynault-share{padding-bottom:24px;color:#e8eee9}
+.share-tabbar{display:flex;align-items:center;gap:9px;border-bottom:1px solid #2a3934;padding-bottom:16px;margin-bottom:18px}
+.share-tabbar button{display:flex;align-items:center;gap:9px;border:1px solid #2a4034;border-radius:11px;padding:11px 14px;color:#a7b9ac;background:#131f1b;font-weight:650;font-size:12px;flex:1;justify-content:center}
+.share-tabbar button.active{background:#c5f451;color:#0b120b;border-color:#c5f451}
+.qr-card{max-width:320px;margin:18px auto;background:white;border-radius:22px;padding:17px;display:flex;flex-direction:column;align-items:center;box-shadow:0 15px 55px #0009}
+.pynault-qr{display:block;max-width:100%;width:100%;height:auto;image-rendering:pixelated}
+.qr-card-label{font-size:10px;font-weight:800;letter-spacing:.13em;color:#1e3026;margin-top:7px}
+.qr-wait{display:flex;align-items:center;justify-content:center;width:270px;aspect-ratio:1;color:#12281a}
+.share-url{border:1px solid #33473c;border-radius:10px;padding:13px;color:#b8cbbf;font-size:11px;word-break:break-all;background:#0c1616}
+.share-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}.share-actions button{flex:1;white-space:nowrap}
+.share-mini{display:flex;align-items:center;gap:9px;font-size:11px;color:#9bb4a3;margin-top:17px;line-height:1.5}
+.share-empty{min-height:150px;display:grid;place-items:center;color:#91a399}
+.device-pair-art{display:flex;justify-content:center;align-items:center;gap:20px;color:#c5f451;padding:20px 0 10px}
+.pynault-share h3{text-align:center;font-size:19px;letter-spacing:-.04em;margin:10px 0}
+.pynault-share .panel-intro{line-height:1.8}
+.paired-status{margin:17px 0;display:flex;align-items:center;gap:11px;border:1px solid #3b6249;border-radius:14px;background:#13241b;padding:13px}
+.paired-status b{display:block;color:#edfff0}.paired-status small{display:block;color:#9eb9a3;font-size:10px;word-break:break-all;margin-top:4px}.paired-status button{margin-left:auto}
+.online-dot{width:10px;height:10px;background:#bbff62;box-shadow:0 0 0 5px #c5f45125;border-radius:50%;flex-shrink:0}
+.pair-button{width:100%;justify-content:center;margin:15px 0}
+.pair-manual{margin:20px 0}.pair-manual label{display:block;font-size:11px;margin-bottom:9px;color:#97ac9e}
+.pair-field{display:flex;border:1px solid #3b4c42;border-radius:10px;overflow:hidden;background:#121f1a}.pair-field input{background:transparent;border:0;outline:0;color:white;flex:1;min-width:0;padding:12px;font-size:12px}.pair-field button{background:#c5f451;color:#14200d;padding:0 19px;font-weight:700}
+.device-inbox{border-top:1px solid #283b31;padding-top:12px}.device-inbox h4{display:flex;justify-content:space-between;font-size:13px;margin:8px 0 14px}.device-inbox h4 span{background:#c5f451;color:#111;border-radius:30px;padding:2px 9px}
+.device-inbox>button{display:flex;align-items:start;gap:8px;padding:13px 8px;text-align:left;border-bottom:1px solid #263b30;width:100%;color:#ddede0}.device-inbox>button span{word-break:break-all}.device-inbox>button small{display:block;margin-top:4px;color:#879d90}.device-inbox>p{color:#899c90;font-size:12px}
+.scan-section{padding-top:14px;border-top:1px solid #33453b;margin-top:15px}.scan-section .dark-btn{width:100%;justify-content:center}
+@media(max-width:790px){
+ .workspace{background:#07100f}
+ .mobile-header{background:linear-gradient(180deg,#071211,rgba(7,18,17,.9));border:0}
+ .browser-stage.stage-home .wallpaper{background:linear-gradient(180deg,#06101150,#06101166),url('/aurora-pynault.png') center center/cover!important}
+ .newtab-layout{position:relative}.start-brand h1{font-size:35px!important;letter-spacing:.2em!important}
+ .shortcut-icon{border-radius:15px!important}.mobile-nav{background:linear-gradient(180deg,#0e1a1900,#0d1818 35%)!important;backdrop-filter:blur(14px)}
+ .search-home{border-radius:18px!important}
+ .pynault-share{padding-bottom:65px}.qr-card{max-width:275px}.share-tabbar{gap:7px}.share-tabbar button{font-size:11px;padding:9px 6px}
+}

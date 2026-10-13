@@ -1,37 +1,20 @@
-# Pynault first-party plugin API — draft v0.2
+# Pynault first-party plugin system — v0.3
 
-**Current status:** The browser includes five trusted, built-in tools exposed by the UI registry. Third-party code installation/execution and the Plugin Marketplace **are not implemented**. Do not advertise Chrome Web Store compatibility.
+`src/plugins/registry.js` defines and validates installed first-party tools. External executable/Chrome extension code is intentionally never loaded into privileged browser chrome. Each native adapter implements the capabilities available on that platform.
 
-## Trusted plugin manifest
+| Plugin | Desktop | Android | iOS |
+|---|---|---|---|
+| Ad & Tracker Blocker | request interception + CSS | WebView interception + CSS | WebKit content rule lists + CSS |
+| Location Guard | permission deny/allow prompts | WebChromeClient geolocation prompt | document-start JS guard plus no OS location entitlement |
+| Website QR | offline generation | generation + camera scanner | generation + camera scanner |
+| Device Link | encrypted pairing + LAN relay | encrypted pairing + relay client | encrypted pairing + relay client |
+| Reader | CSS toggle | CSS toggle | CSS toggle |
+| Page Notes | local browser data | local browser data | local browser data |
+| Focus Mode | local UI | local UI | local UI |
+| Screenshot | Chromium capture | not included | not included |
 
-`src/plugins/registry.js` owns manifests and exposes validation:
+Privacy tools are best-effort; they are not equivalent to a dedicated, fully fledged Chrome-compatible extension ecosystem. This registry is a **trusted built-in action registry**, not a marketplace or arbitrary extension loader. Plugin manifest checks verify IDs, versions, capabilities, and platforms.
 
-```js
-{
-  id: 'reader',
-  name: 'Reader Mode',
-  version: '0.2.0',
-  description: 'Simplify the current article',
-  permissions: ['browser.tabs.active', 'browser.page.reader'],
-  platforms: ['desktop', 'android', 'ios']
-}
-```
+Potential future additions after a full security design include Cookie Controls, Privacy Dashboard, Tab Hibernation, Tracking Link Cleaner, Translator, and PDF Assistant. These are suggestions, not shipped plugin implementations.
 
-There is no `eval`, arbitrary filesystem access, or direct native runtime exposure. The UI calls predefined, allowlisted browser actions. External websites are rendered in separate native/Chromium views without direct access to browser chrome IPC.
-
-## Internal capabilities
-
-| Capability | Purpose |
-|---|---|
-| `browser.tabs.active` | Act on selected page |
-| `browser.page.reader` | Toggle reader styling |
-| `browser.page.screenshot` | Capture a page (desktop only) |
-| `browser.notes` | Local website notes |
-| `browser.privacy` | Built-in tracker toggle (desktop/Android) |
-| `browser.ui` | Change Pynault chrome layout |
-
-## Future third-party plugin SDK (not yet implemented)
-
-A trustworthy extension ecosystem requires signed manifests, a separate execution environment, site-specific permissions, review, versioned APIs, revocation/update signing, a capability broker and a browser-controlled network policy. iOS distribution and executable-code restrictions require specific platform review. Unknown plugin permissions must be rejected.
-
-**Never run downloaded plugin JavaScript in Electron's privileged renderer or preload process.**
+**Critical guard:** Native pages never get direct access to `window.pynault` IPC or Capacitor application shell privileges. Never load downloaded executable extensions in Electron's main/preload/shell runtime.

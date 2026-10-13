@@ -2,10 +2,11 @@ import Foundation
 import Capacitor
 import WebKit
 import UIKit
+import UniformTypeIdentifiers
 
 /** Real WKWebViews for untrusted pages. Remote content never has access to the Capacitor bridge. */
 @objc(NativePagesPlugin)
-public class NativePagesPlugin: CAPPlugin, CAPBridgedPlugin, WKNavigationDelegate {
+public class NativePagesPlugin: CAPPlugin, CAPBridgedPlugin, WKNavigationDelegate, WKDownloadDelegate, WKUIDelegate {
     public let identifier = "NativePagesPlugin"
     public let jsName = "NativePages"
     public let pluginMethods: [CAPPluginMethod] = [
@@ -16,10 +17,37 @@ public class NativePagesPlugin: CAPPlugin, CAPBridgedPlugin, WKNavigationDelegat
         CAPPluginMethod(name: "action", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "viewport", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "shield", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "location", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "downloads", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "window", returnType: CAPPluginReturnPromise)
     ]
     private var tabs: [String: WKWebView] = [:]
+    private var activeDownloads: [ObjectIdentifier:String] = [:]
+    private var shielding = true
+    private var locationBlocked = true
+    private var contentRules: WKContentRuleList?
+    // WKWebView's content rules block known advertising and tracking resource domains.
+    private func compileBlocker(){
+        let names = ["doubleclick.net","googleadservices.com","googlesyndication.com","adservice.google.com","pagead2.googlesyndication.com","partner.googleadservices.com","ads-twitter.com","adsrvr.org","adnxs.com","criteo.com","criteo.net","outbrain.com","taboola.com","rubiconproject.com","pubmatic.com","openx.net","indexww.com","bidswitch.net","casalemedia.com","smartadserver.com","lijit.com","yieldmo.com","sharethrough.com","triplelift.com","sovrn.com","advertising.com","amazon-adsystem.com","media.net","revcontent.com","adform.net","adsafeprotected.com","moatads.com","spotxchange.com","teads.tv","gumgum.com","richaudience.com","districtm.io","33across.com","undertone.com","contextweb.com","exelator.com","adroll.com","quantserve.com","zedo.com","bidr.io","rtbhouse.com","adzerk.net","tribalfusion.com","adskeeper.co.uk","popads.net","propellerads.com","propeller-tracking.com","adsterra.com","trafficjunky.net","mgid.com","servedbyopenx.com","aniview.com","adthrive.com","mediavine.com","adpushup.com","nitropay.com","adlightning.com","google-analytics.com","googletagmanager.com","analytics.google.com","facebook.net","connect.facebook.net","pixel.facebook.com","hotjar.com","static.hotjar.com","bat.bing.com","clarity.ms","segment.io","segment.com","mixpanel.com","amplitude.com","fullstory.com","mouseflow.com","inspectlet.com","crazyegg.com","heap.io","heapanalytics.com","matomo.cloud","newrelic.com","nr-data.net","sentry.io","appsflyer.com","adjust.com","branch.io","kochava.com","scorecardresearch.com","demdex.net","bluekai.com","krxd.net","everesttech.net","adobedtm.com","omtrdc.net","2o7.net","chartbeat.net","parsely.com","permutive.com","lotame.com","adsymptotic.com","onetrust.com","tealiumiq.com"]
+        var conditions = names.map { ["trigger": ["url-filter": "^https?://([^/]*\\.)?" + NSRegularExpression.escapedPattern(for: $0) + "(/|$)", "resource-type":["script","image","style-sheet","raw","svg-document","font","media","popup"]], "action":["type":"block"]] as [String:Any] }
+        conditions.append(["trigger":["url-filter":".*"], "action":["type":"css-display-none","selector":".adsbygoogle, [data-ad-slot], [data-ad-client], .ad-banner, .advertisement"]])
+        guard let encoded=try? JSONSerialization.data(withJSONObject:conditions), let json=String(data:encoded,encoding:.utf8) else{return}
+        WKContentRuleListStore.default().compileContentRuleList(forIdentifier:"pynault-firstparty-shield",encodedContentRuleList:json){ [weak self] rules,error in
+            DispatchQueue.main.async { self?.contentRules=rules;self?.applyBlocker() }
+        }
+    }
+    private func applyBlocker(){for v in tabs.values {v.configuration.userContentController.removeAllContentRuleLists(); if shielding, let r=contentRules{v.configuration.userContentController.add(r)}}}
+    private func geoScript() -> WKUserScript {
+        let js="""
+        (() => {const denied=()=>Promise.reject(new DOMException('Location is blocked by Pynault','NotAllowedError'));
+        try {Object.defineProperty(navigator,'geolocation',{configurable:true,get(){return {getCurrentPosition(success,error){error?.({code:1,message:'Location blocked by Pynault'})},watchPosition(success,error){error?.({code:1,message:'Location blocked by Pynault'});return 0},clearWatch(){}}}})}catch(e){}
+        })();
+        """
+        return WKUserScript(source:js,injectionTime:.atDocumentStart,forMainFrameOnly:false)
+    }
+    private func applyGeoScripts(){for view in tabs.values {view.configuration.userContentController.removeAllUserScripts();if locationBlocked{view.configuration.userContentController.addUserScript(geoScript())}}}
+    override public func load() { super.load(); compileBlocker() }
+
     private var active: String?
     private var visible: Bool = false
     private var pageRect = CGRect(x: 0, y: 60, width: 350, height: 600)
@@ -47,8 +75,11 @@ public class NativePagesPlugin: CAPPlugin, CAPBridgedPlugin, WKNavigationDelegat
         let config=WKWebViewConfiguration()
         config.websiteDataStore=privateMode ? .nonPersistent() : .default()
         config.preferences.javaScriptCanOpenWindowsAutomatically=false
+        if shielding, let r=contentRules {config.userContentController.add(r)}
+        if locationBlocked {config.userContentController.addUserScript(geoScript())}
         let view=WKWebView(frame:pageRect,configuration:config)
         view.navigationDelegate=self
+        view.uiDelegate=self
         view.allowsBackForwardNavigationGestures=true
         view.isOpaque=true
         view.backgroundColor=UIColor(red:0.05,green:0.09,blue:0.08,alpha:1)
@@ -114,10 +145,49 @@ public class NativePagesPlugin: CAPPlugin, CAPBridgedPlugin, WKNavigationDelegat
             self.syncViews();call.resolve()
         }
     }
-    @objc public func shield(_ call: CAPPluginCall){call.resolve() /* URL blocking requires a native content-rule-list implementation */}
-    @objc public func downloads(_ call: CAPPluginCall){call.reject("Native downloads are not implemented on iOS in this version")}
+    @objc public func shield(_ call: CAPPluginCall){DispatchQueue.main.async {self.shielding=call.getBool("enabled") ?? true;self.applyBlocker();call.resolve()}}
+    @objc public func location(_ call: CAPPluginCall){DispatchQueue.main.async {self.locationBlocked=call.getBool("blocked") ?? true;self.applyGeoScripts();self.tabs.values.forEach{$0.reload()};call.resolve()}}
+    @objc public func downloads(_ call: CAPPluginCall){
+        DispatchQueue.main.async {
+            guard let dir=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask).first else {call.reject("Documents folder unavailable");return}
+            let controller=UIDocumentPickerViewController(forOpeningContentTypes:[.folder],asCopy:false)
+            // Downloads are saved to Pynault/Documents/Downloads and shown in the Files app when UIFileSharingEnabled is true.
+            controller.modalPresentationStyle = .formSheet
+            if let parent=self.bridge?.viewController {parent.present(controller, animated:true);call.resolve(["path":dir.appendingPathComponent("Downloads").path])}else{call.reject("No active window")}
+        }
+    }
+    public func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void){
+        let isAttachment=(navigationResponse.response as? HTTPURLResponse)?.allHeaderFields["Content-Disposition"].map{String(describing:$0).lowercased().contains("attachment")} ?? false
+        if !navigationResponse.canShowMIMEType || isAttachment {decisionHandler(.download)} else{decisionHandler(.allow)}
+    }
+    @available(iOS 14.5, *) public func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {download.delegate=self}
+    @available(iOS 14.5, *) public func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {download.delegate=self}
+    @available(iOS 14.5, *) public func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void){
+        guard let root=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask).first else{completionHandler(nil);return}
+        let folder=root.appendingPathComponent("Downloads",isDirectory:true)
+        try? FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
+        let filename=(suggestedFilename as NSString).lastPathComponent
+        let suffix=URL(fileURLWithPath:filename).pathExtension
+        let stem=URL(fileURLWithPath:filename).deletingPathExtension().lastPathComponent
+        var dest=folder.appendingPathComponent(filename);var i=1
+        while FileManager.default.fileExists(atPath:dest.path){dest=folder.appendingPathComponent(stem+"-"+String(i)+(suffix.isEmpty ? "" : "."+suffix));i+=1}
+        activeDownloads[ObjectIdentifier(download)]=filename
+        completionHandler(dest)
+    }
+    @available(iOS 14.5, *) public func downloadDidFinish(_ download: WKDownload){
+        let name=activeDownloads.removeValue(forKey:ObjectIdentifier(download)) ?? "File"
+        notifyListeners("pageUpdate",data:["type":"download","id":UUID().uuidString,"name":name,"status":"completed"])
+    }
+    @available(iOS 14.5, *) public func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?){
+        let name=activeDownloads.removeValue(forKey:ObjectIdentifier(download)) ?? "File"
+        notifyListeners("pageUpdate",data:["type":"download","id":UUID().uuidString,"name":name,"status":"failed"])
+    }
     @objc public func window(_ call: CAPPluginCall){call.resolve()}
 
+    @available(iOS 15.0, *) public func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void){
+        // WKWebView presents its own site permission UI (plus iOS OS permissions).
+        decisionHandler(.prompt)
+    }
     public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!){emit(webView,loading:true)}
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!){emit(webView,loading:false)}
     private func emitError(_ view: WKWebView, error: Error){
