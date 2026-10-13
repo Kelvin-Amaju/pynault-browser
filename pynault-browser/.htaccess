@@ -1,0 +1,23 @@
+# Hide .php and .html extensions from public page URLs.
+# Requires Apache mod_rewrite and AllowOverride for these directives.
+Options -MultiViews
+DirectoryIndex index.php index.html
+
+RewriteEngine On
+
+# Redirect only explicit requests, avoiding loops on internal rewrites.
+# Query strings are preserved automatically.
+RewriteCond %{THE_REQUEST} \s/+([^\s?]+)\.(?:php|html)(?:[?\s]) [NC]
+RewriteRule ^ /%1 [R=301,L,NE]
+
+# Leave existing files (assets/downloads) and directories accessible.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Resolve extensionless pages. PHP takes priority when both files exist.
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.+)$ $1.php [END]
+
+RewriteCond %{REQUEST_FILENAME}.html -f
+RewriteRule ^(.+)$ $1.html [END]

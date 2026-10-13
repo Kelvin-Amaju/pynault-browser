@@ -71,3 +71,6 @@
  .search-home{border-radius:18px!important}
  .pynault-share{padding-bottom:65px}.qr-card{max-width:275px}.share-tabbar{gap:7px}.share-tabbar button{font-size:11px;padding:9px 6px}
 }
+
+/* Keep all browser tabs reachable in their scroll containers. */
+.sb-tab{flex-shrink:0}.top-tab{flex-shrink:0}.top-tabs{scrollbar-width:thin;scrollbar-color:#3e6042 transparent}.top-tabs::-webkit-scrollbar{display:block;height:5px}.top-tabs::-webkit-scrollbar-thumb{background:#3e6042;border-radius:4px}

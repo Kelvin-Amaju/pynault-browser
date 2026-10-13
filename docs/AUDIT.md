@@ -13,10 +13,18 @@
 | Pairing lost when desktop restarted | Auto-restart local relay while paired, prompt re-pair on desktop IP changes | Source checks only |
 | Old v0.2 documentation described a future blocker | Updated docs and plugin registry | Package inspection |
 
-## NOT VERIFIED / DO NOT MISREPRESENT
+## Local verification update — 2026-10-13
+
+The source-creation limitations below describe the original audit environment. Subsequent local checks completed the production Vite build, 46 browser tests, 12 website tests, and Windows x64 installer/portable packaging with Electron 44.7.0. A hidden Electron smoke test verified 16 accessible tabs, the 0.3.0 settings version, and lazy loading of the sharing panel. PHP syntax and Apache clean URLs were also checked locally, including subdirectory redirects and query strings.
+
+TypeScript is pinned to compatible 5.9.x for Capacitor config loading. Android minSdk is 26. Windows packages are unsigned; the Android build command produces a development-signed APK. Physical-device Android QA and iOS compilation are still required. The dependency audit reports eight moderate advisories after compatible fixes; further automatic fixes would require breaking dependency changes.
+
+## Original source-creation limitations
 - `npm install` could not run in this environment (npm registry DNS unavailable); consequently **no production Vite bundle, Electron GUI execution or installer build has been performed here**.
 - Android Java and iOS Swift need type checking and device integration tests. Swift parser validation checks syntax only, not WebKit API availability or signing.
 - Android private mode remains off because the WebView cookies/sessions aren't isolated per tab/process.
 - Full Chrome extension compatibility, phishing protection, a mature password manager, authenticated update distribution, and public-store signoffs are not in scope for this code audit.
 - Privacy blocking isn't a guarantee of zero ads or that websites cannot infer coarse location from IP address. A geolocation guard doesn't hide your IP or timezone.
 - Real use of local relay may require the OS firewall and iOS/Android network permissions; a production relay needs TLS and abuse-rate controls.
+
+Android follow-up: the 0.3.0 debug APK compiled successfully with the native browser and QR scanner. APK signature verification passed; embedded version is 0.3.0, versionCode is 2, minSdk is 26 and targetSdk is 36. Physical-device behavior remains unverified.

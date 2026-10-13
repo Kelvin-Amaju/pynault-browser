@@ -4,7 +4,8 @@ import path from 'node:path';
 
 const root = process.cwd();
 const windows = process.platform === 'win32';
-const result = spawnSync(windows ? 'cmd.exe' : './gradlew', windows ? ['/d', '/c', 'gradlew.bat assembleDebug --console=plain'] : ['assembleDebug', '--console=plain'], {
+const gradleArgs = ['assembleDebug', '--console=plain', '-Djava.net.preferIPv4Stack=true', '-Dorg.gradle.internal.http.connectionTimeout=15000', '-Dorg.gradle.internal.http.socketTimeout=15000'];
+const result = spawnSync(windows ? 'cmd.exe' : './gradlew', windows ? ['/d', '/c', 'gradlew.bat ' + gradleArgs.join(' ')] : gradleArgs, {
   cwd: path.join(root, 'android'), stdio: 'inherit', env: process.env
 });
 if (result.error) throw result.error;

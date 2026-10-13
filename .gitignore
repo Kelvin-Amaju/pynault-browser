@@ -8,3 +8,14 @@ android/build/
 android/app/build/
 ios/DerivedData/
 ios/Pods/
+
+# Local configuration and signing secrets
+android/local.properties
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+# Website release attachments are generated, not source
+pynault-browser/downloads/*.exe
+pynault-browser/downloads/*.apk

@@ -12,6 +12,14 @@ import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
 import android.webkit.WebChromeClient;
+import android.webkit.PermissionRequest;
+import android.app.Activity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import android.webkit.GeolocationPermissions;
+import android.app.AlertDialog;
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceResponse;
@@ -37,7 +45,16 @@ public class NativePagesPlugin extends Plugin {
     private boolean contentVisible = true;
     private boolean shield = true;
     private int x = 0, y = 60, width = 350, height = 600;
-    private static final String[] TRACKERS = {"google-analytics.com", "doubleclick.net", "facebook.net", "hotjar.com", "bat.bing.com"};
+    private volatile boolean locationBlocked = true;
+    private static PermissionRequest pendingMedia;
+    private static GeolocationPermissions.Callback pendingGeo;
+    private static String pendingGeoOrigin;
+    public static void completeSystemPermission(int code, int[] results){
+      boolean allGranted=results.length>0;for(int x:results)allGranted &= x==PackageManager.PERMISSION_GRANTED;
+      if(code==8405 && pendingMedia!=null){PermissionRequest request=pendingMedia;pendingMedia=null;if(allGranted)request.grant(request.getResources());else request.deny();}
+      if(code==8406 && pendingGeo!=null){GeolocationPermissions.Callback cb=pendingGeo;String origin=pendingGeoOrigin;pendingGeo=null;pendingGeoOrigin=null;cb.invoke(origin,allGranted,false);}
+    }
+    private static final String[] BLOCK_DOMAINS = {"doubleclick.net","googleadservices.com","googlesyndication.com","adservice.google.com","pagead2.googlesyndication.com","partner.googleadservices.com","ads-twitter.com","adsrvr.org","adnxs.com","criteo.com","criteo.net","outbrain.com","taboola.com","rubiconproject.com","pubmatic.com","openx.net","indexww.com","bidswitch.net","casalemedia.com","smartadserver.com","lijit.com","yieldmo.com","sharethrough.com","triplelift.com","sovrn.com","advertising.com","amazon-adsystem.com","media.net","revcontent.com","adform.net","adsafeprotected.com","moatads.com","spotxchange.com","teads.tv","gumgum.com","richaudience.com","districtm.io","33across.com","undertone.com","contextweb.com","exelator.com","adroll.com","quantserve.com","zedo.com","bidr.io","rtbhouse.com","adzerk.net","tribalfusion.com","adskeeper.co.uk","popads.net","propellerads.com","propeller-tracking.com","adsterra.com","trafficjunky.net","mgid.com","servedbyopenx.com","aniview.com","adthrive.com","mediavine.com","adpushup.com","nitropay.com","adlightning.com","google-analytics.com","googletagmanager.com","analytics.google.com","facebook.net","connect.facebook.net","pixel.facebook.com","hotjar.com","static.hotjar.com","bat.bing.com","clarity.ms","segment.io","segment.com","mixpanel.com","amplitude.com","fullstory.com","mouseflow.com","inspectlet.com","crazyegg.com","heap.io","heapanalytics.com","matomo.cloud","newrelic.com","nr-data.net","sentry.io","appsflyer.com","adjust.com","branch.io","kochava.com","scorecardresearch.com","demdex.net","bluekai.com","krxd.net","everesttech.net","adobedtm.com","omtrdc.net","2o7.net","chartbeat.net","parsely.com","permutive.com","lotame.com","adsymptotic.com","onetrust.com","tealiumiq.com"};
 
     private boolean safe(String raw) {
         if (raw == null) return false;
@@ -69,7 +86,10 @@ public class NativePagesPlugin extends Plugin {
         v.setWebViewClient(new WebViewClient(){
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request){return !safe(request.getUrl().toString());}
             @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon){state(id,view,true);}
-            @Override public void onPageFinished(WebView view,String url){state(id,view,false);}
+            @Override public void onPageFinished(WebView view,String url){
+                if(shield)view.evaluateJavascript("(function(){if(document.querySelector('#__pynault_adcss'))return;var s=document.createElement('style');s.id='__pynault_adcss';s.textContent='.adsbygoogle,[data-ad-slot],[data-ad-client],.ad-banner,.advertisement{display:none!important}';document.documentElement.appendChild(s)})()",null);
+                state(id,view,false);
+            }
             @Override public void onReceivedError(WebView view,WebResourceRequest req,WebResourceError error){
                 if(req.isForMainFrame()){
                     JSObject update=new JSObject();
@@ -79,11 +99,44 @@ public class NativePagesPlugin extends Plugin {
                 }
             }
             @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest req){
-                if(shield && req.getUrl().getHost()!=null){String host=req.getUrl().getHost().toLowerCase();for(String t:TRACKERS){if(host.equals(t)||host.endsWith("."+t))return new WebResourceResponse("text/plain","utf-8",new ByteArrayInputStream(new byte[0]));}}
+                if(shield && !req.isForMainFrame() && req.getUrl().getHost()!=null){
+                  String host=req.getUrl().getHost().toLowerCase();
+                  String current="";try{current=Uri.parse(view.getUrl()).getHost().toLowerCase();}catch(Exception ignored){}
+                  if(host.equals(current))return null;
+                  for(String t:BLOCK_DOMAINS){if(host.equals(t)||host.endsWith("."+t))return new WebResourceResponse("text/plain","utf-8",new ByteArrayInputStream(new byte[0]));}
+                }
                 return null;
             }
         });
         v.setWebChromeClient(new WebChromeClient(){
+            @Override public void onPermissionRequest(PermissionRequest request){
+              getActivity().runOnUiThread(()->{
+                String site=request.getOrigin().getHost();
+                new AlertDialog.Builder(getActivity()).setTitle("Site media permission")
+                  .setMessage(site+" wants access to your camera or microphone. Only approve a trusted website.")
+                  .setNegativeButton("Block",(d,w)->request.deny())
+                  .setPositiveButton("Allow",(d,w)->{
+                    java.util.List<String> ask=new java.util.ArrayList<>();
+                    for(String resource:request.getResources()){
+                      if(resource.equals(PermissionRequest.RESOURCE_VIDEO_CAPTURE)&&ContextCompat.checkSelfPermission(getActivity(),Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)ask.add(Manifest.permission.CAMERA);
+                      else if(resource.equals(PermissionRequest.RESOURCE_AUDIO_CAPTURE)&&ContextCompat.checkSelfPermission(getActivity(),Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED)ask.add(Manifest.permission.RECORD_AUDIO);
+                    }
+                    if(!ask.isEmpty()){pendingMedia=request;ActivityCompat.requestPermissions(getActivity(),ask.toArray(new String[0]),8405);}
+                    else request.grant(request.getResources());
+                  }).show();
+              });
+            }
+            @Override public void onGeolocationPermissionsShowPrompt(String origin,GeolocationPermissions.Callback callback){
+                if(locationBlocked){callback.invoke(origin,false,false);return;}
+                getActivity().runOnUiThread(()->new AlertDialog.Builder(getActivity())
+                  .setTitle("Website location request").setMessage(origin+" wants your approximate location. Grant only if you trust this website.")
+                  .setNegativeButton("Block",(d,w)->callback.invoke(origin,false,false))
+                  .setPositiveButton("Allow",(d,w)->{
+                    boolean granted=androidx.core.content.ContextCompat.checkSelfPermission(getActivity(),Manifest.permission.ACCESS_COARSE_LOCATION)==PackageManager.PERMISSION_GRANTED;
+                    if(!granted){pendingGeo=callback;pendingGeoOrigin=origin;ActivityCompat.requestPermissions(getActivity(),new String[]{Manifest.permission.ACCESS_COARSE_LOCATION},8406);}
+                    else callback.invoke(origin,true,false);
+                  }).show());
+            }
             @Override public void onReceivedTitle(WebView view,String title){JSObject o=new JSObject();o.put("title",title);emit(id,o);}
             @Override public void onProgressChanged(WebView view,int progress){if(progress==100)state(id,view,false);}
         });
@@ -155,6 +208,7 @@ public class NativePagesPlugin extends Plugin {
         });
     }
     @PluginMethod public void shield(PluginCall call){shield=Boolean.TRUE.equals(call.getBoolean("enabled",true));call.resolve();}
+    @PluginMethod public void location(PluginCall call){locationBlocked=Boolean.TRUE.equals(call.getBoolean("blocked",true));call.resolve();}
     @PluginMethod public void downloads(PluginCall call){
         getActivity().runOnUiThread(()->{
             try{

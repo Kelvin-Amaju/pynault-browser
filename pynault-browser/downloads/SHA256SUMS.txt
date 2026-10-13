@@ -1,0 +1,3 @@
+a8832cafbf4e158a40883cadb64f2d742b2fec72555848307ba4d843baa4101f  Pynault-Setup-0.3.0.exe
+6a652412b63485f8dc11f060120e5e9e9bde22244d570b99fce4b5a27fe2dcf7  Pynault-0.3.0-portable.exe
+7556a8e74f31dbd58414e1ced7eed58b89b516200b7edc3efdd6f909ec56856b  Pynault-0.3.0-android-debug.apk

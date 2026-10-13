@@ -1,0 +1,23 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const vm=require('node:vm');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.join(__dirname,'..');
+const sandbox={window:{}};
+vm.createContext(sandbox);
+vm.runInContext(fs.readFileSync(path.join(root,'assets/js/detect.js'),'utf8'),sandbox);
+const {detectDevice,preferredLabel,classifyDevice}=sandbox.window.PynaultDetection;
+function check(input,family,os){const result=detectDevice(input);assert.equal(result.family,family);assert.equal(result.os,os)}
+test('Windows via UA',()=>check({userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'},'desktop','Windows'));
+test('Windows through UA-CH',()=>check({uaPlatform:'Windows'},'desktop','Windows'));
+test('Mac desktop',()=>check({platform:'MacIntel',userAgent:'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'},'desktop','macOS'));
+test('iPadOS pretending Mac',()=>check({platform:'MacIntel',maxTouchPoints:5,userAgent:'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'},'ios','iPadOS'));
+test('iPhone',()=>check({userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X)'},'ios','iOS'));
+test('Android',()=>check({userAgent:'Mozilla/5.0 (Linux; Android 15; Pixel 9)'},'android','Android'));
+test('Android UA-CH',()=>check({uaPlatform:'Android'},'android','Android'));
+test('Linux',()=>check({userAgent:'Mozilla/5.0 (X11; Linux x86_64)'},'desktop','Linux'));
+test('Unknown',()=>check({userAgent:'SomeCustomBrowser/0.1'},'unknown','Unknown'));
+test('Blank',()=>check({},'unknown','Unknown'));
+test('Recommended label',()=>assert.equal(preferredLabel({family:'ios',os:'iOS'}),'Get Pynault for iOS'));
+test('Device classifier',()=>assert.equal(classifyDevice({userAgentData:{platform:'Android'}}).family,'android'));
