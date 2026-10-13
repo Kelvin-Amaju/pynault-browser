@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {BUNDLED_PLUGINS,PLUGIN_PERMISSIONS,availablePlugins,validatePluginManifest} from '../src/plugins/registry.js';
+test('bundled plugins have valid manifests',()=>{for(const m of BUNDLED_PLUGINS)assert.deepEqual(validatePluginManifest(m),{ok:true},m.id)});
+test('bundled plugin IDs are unique',()=>assert.equal(new Set(BUNDLED_PLUGINS.map(x=>x.id)).size,BUNDLED_PLUGINS.length));
+test('disallows unknown extension permissions',()=>assert.equal(validatePluginManifest({...BUNDLED_PLUGINS[0],permissions:['filesystem.write']}).ok,false));
+test('disallows unrecognized target platform',()=>assert.equal(validatePluginManifest({...BUNDLED_PLUGINS[0],platforms:['server']}).ok,false));
+test('only supports known browser capabilities',()=>assert.ok(PLUGIN_PERMISSIONS.includes('browser.page.reader')));
+test('Android excludes desktop-only screenshot plugin',()=>assert.ok(!availablePlugins('android').some(x=>x.id==='screenshot')));
+test('iOS excludes basic tracker shield requiring native blocklist',()=>assert.ok(!availablePlugins('ios').some(x=>x.id==='shield')));

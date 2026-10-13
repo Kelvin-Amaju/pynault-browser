@@ -1,0 +1,17 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {resolveAddress,HOME,isWeb,siteLabel} from '../src/navigation.js';
+test('empty address opens homepage',()=>assert.equal(resolveAddress('  '),HOME));
+test('domain uses https',()=>assert.equal(resolveAddress('github.com'),'https://github.com'));
+test('url stays https',()=>assert.equal(resolveAddress('https://github.com/pynault'),'https://github.com/pynault'));
+test('search query encodes',()=>assert.equal(resolveAddress('open source browsers'),'https://www.google.com/search?q=open%20source%20browsers'));
+test('javascript urls are treated as queries',()=>assert.ok(resolveAddress('javascript:alert(1)').startsWith('https://www.google.com/search')));
+test('no insecure protocols are allowed',()=>assert.equal(isWeb('file:///tmp/a'),false));
+test('siteLabel extracts hostname',()=>assert.equal(siteLabel('https://www.github.com/org'),'github.com'));
+test('localhost uses http',()=>assert.equal(resolveAddress('localhost:3000'),'http://localhost:3000'));
+test('local IP uses http',()=>assert.equal(resolveAddress('127.0.0.1:3000'),'http://127.0.0.1:3000'));
+test('DuckDuckGo search is selectable',()=>assert.equal(resolveAddress('pynault browser','duckduckgo'),'https://duckduckgo.com/?q=pynault%20browser'));
+test('Bing search is selectable',()=>assert.equal(resolveAddress('pynault browser','bing'),'https://www.bing.com/search?q=pynault%20browser'));
+test('Brave search is selectable',()=>assert.equal(resolveAddress('pynault browser','brave'),'https://search.brave.com/search?q=pynault%20browser'));
+test('unknown search engine falls back to Google',()=>assert.equal(resolveAddress('hello','unknown'),'https://www.google.com/search?q=hello'));
+test('invalid http url resolves as search',()=>assert.equal(resolveAddress('https://'),'https://www.google.com/search?q=https%3A%2F%2F'));
+test('FTP is rejected from web context',()=>assert.equal(isWeb('ftp://example.com'),false));
+test('about blank maps to internal homepage',()=>assert.equal(resolveAddress('about:blank'),HOME));
